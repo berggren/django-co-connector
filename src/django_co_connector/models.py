@@ -11,7 +11,7 @@ from django.db.models.fields.related import OneToOneRel
 from django.dispatch.dispatcher import Signal
 
 class AccessControlEntry(models.Model):
-    group = OneToOneRel(Group,related_name='acl')
+    group = OneToOneRel(Group,related_name='acl',blank=True,null=True)
     permission = CharField(max_length=256)
     modify_time = DateTimeField(auto_now=True)
     create_time = DateTimeField(auto_now_add=True)
@@ -19,16 +19,46 @@ class AccessControlEntry(models.Model):
     def __unicode__(self):
         return "%s can %s" % (self.group.__unicode__(),self.permission)
 
-def has_permission(object,user,permission):
-    if hasattr(object,'acl'):
-        if hasattr(object.acl,'__call__'):
-            acl = object.acl()
-        else:
-            acl = object.acl
-            
-        for ace in acl:
-            if ace.permission == permission and ace.group in user.groups:
-                return True
+    class Meta:
+        unique_together = ('group','permission')
+
+def allow(object,group,permission):
+    if not hasattr(object,'acl'):
+        raise Exception,"no acl property"
+    
+    if group == 'anyone':
+        ace = object.acl.filter(group=None,permission=permission)
+        if not ace:
+            ace = AccessControlEntry.objects.create(group=None,permission=permission)
+            object.acl.append(ace)
+    else:
+        ace = object.acl.filter(group=group,permission=permission)
+        if not ace:
+            ace = AccessControlEntry.objects.create(group=group,permission=permission)
+            object.acl.append(ace)
+
+def deny(object,group,permission):
+    if not hasattr(object,'acl'):
+        raise Exception,"no acl property"
+    
+    if group == 'anyone':
+        ace = object.acl.filter(group=None,permission=permission)
+        if ace:
+            object.acl.remove(ace)
+    else:
+        ace = object.acl.filter(group=group,permission=permission)
+        if ace:
+            object.acl.remove(ace)
+
+def can(object,user,permission):
+    if not hasattr(object,'acl'):
+        raise Exception,"no acl property"
+        
+    for ace in object.acl:
+        if ace.permission == permission and not ace.group:
+            return True
+        if ace.permission == permission and ace.group in user.groups:
+            return True
             
     return False
 
