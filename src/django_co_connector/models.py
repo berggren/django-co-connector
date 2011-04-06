@@ -53,11 +53,9 @@ def deny(object,group,permission):
 def can(object,user,permission):
     if not hasattr(object,'acl'):
         raise Exception,"no acl property"
-        
-    for ace in object.acl:
-        if ace.permission == permission and not ace.group:
-            return True
-        if ace.permission == permission and ace.group in user.groups:
+    # XXX use more sql here
+    for ace in object.acl.filter(permission=permission):
+        if not ace.group or ace.group in user.groups:
             return True
             
     return False
