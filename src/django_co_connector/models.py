@@ -9,6 +9,7 @@ from django.db.models.fields import CharField, URLField, DateTimeField, IntegerF
 from django.contrib.auth.models import Group
 from django.db.models.fields.related import OneToOneRel
 from django.dispatch.dispatcher import Signal
+from django_co_connector.settings import CO_ATTRIBUTES, CO_URI_ATTRIBUTE
 
 class AccessControlEntry(models.Model):
     group = OneToOneRel(Group,related_name='acl',blank=True,null=True)
@@ -61,12 +62,28 @@ def can(object,user,permission):
     return False
 
 class GroupConnector(models.Model):
-    ttl = IntegerField(blank=True)
-    uri = URLField(unique=True)
-    member_feed = URLField(blank=True)
     group = OneToOneRel(Group,related_name='connector')
     modify_time = DateTimeField(auto_now=True)
     create_time = DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        abstract = True
+
+class AttributeGroupConnector(GroupConnector):
+    attribute = CharField(max_length=1024)
+    value = CharField(max_length=1024)
+    
+    def __unicode__(self):
+        return "%s=%s for %s" % (self.attribute,self.value,self.group.name)
+    
+    class Meta:
+        unique_together = ('attribute','value')
+
+class URIGroupConnector(GroupConnector):
+    url = URLField(unique=True)
+    activity_url = URLField(blank=True)
+    membership_url = URLField(blank=True)
+    ttl = IntegerField(blank=True)
     
     def __unicode__(self):
         return "%s for %s" % (self.uri,self.group.name)
@@ -92,23 +109,39 @@ class GroupConnector(models.Model):
                 remove_member.send(sender=self.group,user=user)
                 user.groups.remove(self.group)
     
-    def contains(self,user):
-        return user in self.members
-    
 add_member = Signal(providing_args=['user'])
 remove_member = Signal(providing_args=['user'])
 
 def co_import_from_request(request):
-    epes = request.META.get('HTTP_ENTITLEMENT')
+    epes = request.META.get(CO_URI_ATTRIBUTE)
     for uri in epes.split(';'):
-        co_import(uri,members=[request.user])
-    ## import urn:x-avp:attribute:value URIs aswell
+        if uri.startswith("http"):
+            co_import_uri(uri,members=[request.user])
+        
+    for attribute in request.META.get(CO_ATTRIBUTES):
+        values = request.META.get(attribute)
+        for value in values.split(';'):
+            co_import_av(attribute,value,members=[request.user])
 
-def co_import(uri,members=None):
-    gco = GroupConnector.objects.get(uri=uri)
+def co_import_av(attribute,value,members=None):
+    aco = AttributeGroupConnector.objects.get(attribute=attribute,value=value)
+    if not aco:
+        group = Group.objects.create(name=value)
+        aco = AttributeGroupConnector.objects.create(attribute=attribute,value=value,group=group)
+    
+    for user in members:
+        if not aco.group in user.groups:
+            add_member.send(sender=aco.group,user=user)
+            user.groups.apppend(aco.group)
+            user.save()
+    
+    return aco
+
+def co_import_uri(uri,members=None):
+    gco = URIGroupConnector.objects.get(uri=uri)
     if not gco:
         group = Group.objects.create(name=uri)
-        gco = GroupConnector.objects.create(uri=uri,ttl=0,group=group)
+        gco = URIGroupConnector.objects.create(uri=uri,ttl=0,group=group)
     
     obj = gco.fetch_meta()
     changed = False
@@ -127,7 +160,7 @@ def co_import(uri,members=None):
     
     for user in members:
         if not gco.group in user.groups:
-            add_member.send(sender=gco,user=user)
+            add_member.send(sender=gco.group,user=user)
             user.groups.apppend(gco.group)
             user.save()
     
