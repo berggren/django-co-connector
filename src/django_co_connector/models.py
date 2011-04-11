@@ -7,12 +7,12 @@ Created on Apr 5, 2011
 from django.db import models
 from django.db.models.fields import CharField, URLField, DateTimeField, IntegerField
 from django.contrib.auth.models import Group
-from django.db.models.fields.related import OneToOneRel
+from django.db.models.fields.related import OneToOneField, ForeignKey
 from django.dispatch.dispatcher import Signal
-from django_co_connector.settings import CO_ATTRIBUTES, CO_URI_ATTRIBUTE
+from django_co_connector.settings import CO_ATTRIBUTES
 
 class AccessControlEntry(models.Model):
-    group = OneToOneRel(Group,related_name='acl',blank=True,null=True)
+    group = ForeignKey(Group,related_name='+',blank=True,null=True)
     permission = CharField(max_length=256)
     modify_time = DateTimeField(auto_now=True)
     create_time = DateTimeField(auto_now_add=True)
@@ -62,31 +62,20 @@ def can(object,user,permission):
     return False
 
 class GroupConnector(models.Model):
-    group = OneToOneRel(Group,related_name='connector')
-    modify_time = DateTimeField(auto_now=True)
-    create_time = DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        abstract = True
-
-class AttributeGroupConnector(GroupConnector):
     attribute = CharField(max_length=1024)
     value = CharField(max_length=1024)
+    activity_url = URLField(blank=True)
+    membership_url = URLField(blank=True)
+    ttl = IntegerField(blank=True)
+    group = OneToOneField(Group,related_name='connector')
+    modify_time = DateTimeField(auto_now=True)
+    create_time = DateTimeField(auto_now_add=True)
     
     def __unicode__(self):
         return "%s=%s for %s" % (self.attribute,self.value,self.group.name)
     
     class Meta:
         unique_together = ('attribute','value')
-
-class URIGroupConnector(GroupConnector):
-    url = URLField(unique=True)
-    activity_url = URLField(blank=True)
-    membership_url = URLField(blank=True)
-    ttl = IntegerField(blank=True)
-    
-    def __unicode__(self):
-        return "%s for %s" % (self.uri,self.group.name)
     
     def fetch_updates(self):
         return ([],[])
@@ -113,59 +102,43 @@ add_member = Signal(providing_args=['user'])
 remove_member = Signal(providing_args=['user'])
 
 def co_import_from_request(request):
-    epes = request.META.get(CO_URI_ATTRIBUTE)
-    for uri in epes.split(';'):
-        if uri.startswith("http"):
-            co_import_uri(uri,members=[request.user])
-        
     for attribute in request.META.get(CO_ATTRIBUTES):
         values = request.META.get(attribute)
-        for value in values.split(';'):
-            co_import_av(attribute,value,members=[request.user])
+        co_import_av(request.user,attribute,values.split(';'))
 
-def co_import_av(attribute,value,members=None):
-    aco = AttributeGroupConnector.objects.get(attribute=attribute,value=value)
-    if not aco:
-        group = Group.objects.create(name=value)
-        aco = AttributeGroupConnector.objects.create(attribute=attribute,value=value,group=group)
+def co_import_av(user,attribute,values):
+    for value in values:
+        gco = GroupConnector.objects.filter(attribute=attribute,value=value)
+        if not gco:
+            group = Group.objects.create(name=value)
+            gco = GroupConnector.objects.create(attribute=attribute,value=value,group=group)
+            
+            meta = gco.fetch_meta()
+            changed = False
+            for attr in ('name','ttl','activity_url','membership_url'):
+                if meta.has_key(attr):
+                    setattr(gco,attr,meta.get(attr))
+                    changed = True
+            
+            #members = gco.fetch_all()
+            #for user in members:
+            #    if not gco.group in user.groups:
+            #        add_member.send(sender=gco.group,user=user)
+            #        user.groups.apppend(gco.group)
+            #        user.save()
+            
+            if changed:
+                gco.save()
+                gco.group.save()
     
-    for user in members:
-        if not aco.group in user.groups:
-            add_member.send(sender=aco.group,user=user)
-            user.groups.apppend(aco.group)
-            user.save()
-    
-    return aco
-
-def co_import_uri(uri,members=None):
-    gco = URIGroupConnector.objects.get(uri=uri)
-    if not gco:
-        group = Group.objects.create(name=uri)
-        gco = URIGroupConnector.objects.create(uri=uri,ttl=0,group=group)
-    
-    obj = gco.fetch_meta()
-    changed = False
-    if obj.has_key('name'):
-        gco.group.name = obj['name']
-        changed = True
-    if obj.has_key('ttl'):
-        gco.ttl = obj['ttl']
-        changed = True
-    if obj.has_key('member-feed'):
-        gco.member_feed = obj['member-feed']
-        changed = True
-    
-    if not members:
-        members = gco.fetch_all()
-    
-    for user in members:
-        if not gco.group in user.groups:
-            add_member.send(sender=gco.group,user=user)
-            user.groups.apppend(gco.group)
-            user.save()
-    
-    if changed:
-        gco.save()
-        gco.group.save()
-    
-    return gco
+    for gco in GroupConnector.objects.filter(attribute=attribute):
+        if not gco.value in values:
+            if gco.group in user.groups:
+                remove_member.send(sender=gco.group,user=user)
+                user.groups.remove(gco.group)
+                user.save()
+        else:
+            if not gco.group in user.groups:
+                add_member.send(sender=gco.group,user=user)
+                user.groups.apppend(gco.group)
+                user.save()
