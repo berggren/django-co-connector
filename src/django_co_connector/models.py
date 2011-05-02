@@ -55,10 +55,10 @@ remove_member = Signal(providing_args=['user'])
 def co_import_from_request(request):
     for attribute in CO_ATTRIBUTES:
         logging.debug(attribute)
-        for attribute in request.META.get(attribute):
-            values = request.META.get(attribute)                    
-            if values and values != "(null)":
-                co_import_av(request.user,attribute,values.split(';'))
+        values = request.META.get(attribute)                 
+        if values and values != "(null)":
+            logging.debug("%s: %s" % (attribute,values))
+            co_import_av(request.user,attribute,values.split(';'))
 
 def co_import_av(user,attribute,values):
     for value in values:
