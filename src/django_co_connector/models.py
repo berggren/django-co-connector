@@ -64,7 +64,7 @@ def co_import_av(user,attribute,values):
     for value in values:
         gco = GroupConnector.objects.filter(attribute=attribute,value=value)
         if not gco:
-            group = Group.objects.get_or_create(name=value)
+            group,created = Group.objects.get_or_create(name=value)
             gco = GroupConnector.objects.create(attribute=attribute,value=value,group=group)
             
             meta = gco.fetch_meta()
