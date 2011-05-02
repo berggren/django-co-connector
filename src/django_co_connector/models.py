@@ -87,12 +87,12 @@ def co_import_av(user,attribute,values):
     
     for gco in GroupConnector.objects.filter(attribute=attribute):
         if not gco.value in values:
-            if gco.group in user.groups:
+            if gco.group in user.groups.all():
                 remove_member.send(sender=gco.group,user=user)
                 user.groups.remove(gco.group)
                 user.save()
         else:
-            if not gco.group in user.groups:
+            if not gco.group in user.groups.all():
                 add_member.send(sender=gco.group,user=user)
                 user.groups.apppend(gco.group)
                 user.save()
