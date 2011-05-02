@@ -89,10 +89,10 @@ def co_import_av(user,attribute,values):
         if not gco.value in values:
             if gco.group in user.groups.all():
                 remove_member.send(sender=gco.group,user=user)
-                user.groups.remove(gco.group)
+                user.groups.all().remove(gco.group)
                 user.save()
         else:
             if not gco.group in user.groups.all():
                 add_member.send(sender=gco.group,user=user)
-                user.groups.apppend(gco.group)
+                user.groups.all().apppend(gco.group)
                 user.save()
