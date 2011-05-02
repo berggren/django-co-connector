@@ -15,9 +15,9 @@ import logging
 class GroupConnector(models.Model):
     attribute = CharField(max_length=1024)
     value = CharField(max_length=1024)
-    activity_url = URLField(blank=True)
-    membership_url = URLField(blank=True)
-    ttl = IntegerField(blank=True)
+    activity_url = URLField(blank=True,null=True)
+    membership_url = URLField(blank=True,null=True)
+    ttl = IntegerField(blank=True,null=True)
     group = OneToOneField(Group,related_name='connector')
     modify_time = DateTimeField(auto_now=True)
     create_time = DateTimeField(auto_now_add=True)
