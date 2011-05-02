@@ -10,6 +10,7 @@ from django.contrib.auth.models import Group
 from django.db.models.fields.related import OneToOneField
 from django.dispatch.dispatcher import Signal
 from django_co_connector.settings import CO_ATTRIBUTES
+import logging
 
 class GroupConnector(models.Model):
     attribute = CharField(max_length=1024)
@@ -52,6 +53,7 @@ add_member = Signal(providing_args=['user'])
 remove_member = Signal(providing_args=['user'])
 
 def co_import_from_request(request):
+    logging.debug(request.META.get(CO_ATTRIBUTES))
     for attribute in request.META.get(CO_ATTRIBUTES):
         values = request.META.get(attribute)                    
         if values and values != "(null)":
