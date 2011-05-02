@@ -7,59 +7,9 @@ Created on Apr 5, 2011
 from django.db import models
 from django.db.models.fields import CharField, URLField, DateTimeField, IntegerField
 from django.contrib.auth.models import Group
-from django.db.models.fields.related import OneToOneField, ForeignKey
+from django.db.models.fields.related import OneToOneField
 from django.dispatch.dispatcher import Signal
 from django_co_connector.settings import CO_ATTRIBUTES
-
-class AccessControlEntry(models.Model):
-    group = ForeignKey(Group,related_name='+',blank=True,null=True)
-    permission = CharField(max_length=256)
-    modify_time = DateTimeField(auto_now=True)
-    create_time = DateTimeField(auto_now_add=True)
-    
-    def __unicode__(self):
-        return "%s can %s" % (self.group.__unicode__(),self.permission)
-
-    class Meta:
-        unique_together = ('group','permission')
-
-def allow(object,group,permission):
-    if not hasattr(object,'acl'):
-        raise Exception,"no acl property"
-    
-    if group == 'anyone':
-        ace = object.acl.filter(group=None,permission=permission)
-        if not ace:
-            ace = AccessControlEntry.objects.create(group=None,permission=permission)
-            object.acl.append(ace)
-    else:
-        ace = object.acl.filter(group=group,permission=permission)
-        if not ace:
-            ace = AccessControlEntry.objects.create(group=group,permission=permission)
-            object.acl.append(ace)
-
-def deny(object,group,permission):
-    if not hasattr(object,'acl'):
-        raise Exception,"no acl property"
-    
-    if group == 'anyone':
-        ace = object.acl.filter(group=None,permission=permission)
-        if ace:
-            object.acl.remove(ace)
-    else:
-        ace = object.acl.filter(group=group,permission=permission)
-        if ace:
-            object.acl.remove(ace)
-
-def can(object,user,permission):
-    if not hasattr(object,'acl'):
-        raise Exception,"no acl property"
-    # XXX use more sql here
-    for ace in object.acl.filter(permission=permission):
-        if not ace.group or ace.group in user.groups:
-            return True
-            
-    return False
 
 class GroupConnector(models.Model):
     attribute = CharField(max_length=1024)
@@ -103,8 +53,9 @@ remove_member = Signal(providing_args=['user'])
 
 def co_import_from_request(request):
     for attribute in request.META.get(CO_ATTRIBUTES):
-        values = request.META.get(attribute)
-        co_import_av(request.user,attribute,values.split(';'))
+        values = request.META.get(attribute)                    
+        if values and values != "(null)":
+            co_import_av(request.user,attribute,values.split(';'))
 
 def co_import_av(user,attribute,values):
     for value in values:

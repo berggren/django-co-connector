@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from distutils.core import setup
 
 setup(name="django-co-connector",
@@ -8,7 +10,7 @@ setup(name="django-co-connector",
       url="http://github.com/leifj/django-co-connector",
       #download_url="",
       zip_safe=False,
-      packages=["django_user_channels"],
+      packages=["django_co_connector","django_co_acls"],
       package_dir={"": "src"},
       #package_data = {"django_user_channels": []},
       classifiers=["Development Status :: 3 - Alpha",
