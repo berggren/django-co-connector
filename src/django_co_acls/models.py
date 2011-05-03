@@ -32,10 +32,11 @@ def allow(object,ug,permission):
         return allow_user(object,ug,permission)
     elif isinstance(ug,str):
         if ug == 'anyone':
-            ace = object.acl.filter(group=None,permission=permission)
+            ace = None
+            if object.acl:
+                ace = object.acl.get_query_set().filter(group=None,permission=permission)
             if not ace:
-                ace = AccessControlEntry.objects.create(group=None,user=None,permission=permission)
-                object.acl.append(ace)
+                ace = object.acl.create(group=None,user=None,permission=permission)
     else:
         raise Exception,"Don't know how to allow %s to do stuff" % repr(ug)
 
@@ -49,7 +50,9 @@ def deny(object,ug,permission):
         return deny_user(object,ug,permission)
     elif isinstance(ug,str):
         if ug == 'anyone':
-            ace = object.acl.filter(user=None,group=None,permission=permission)
+            ace = None
+            if object.acl:
+                ace = object.acl.get_query_set().filter(user=None,group=None,permission=permission)
             if ace:
                 object.acl.remove(ace)
     else:
@@ -65,24 +68,30 @@ def acl(object):
     return acl
 
 def allow_user(object,user,permission):
-    ace = object.acl.filter(user=user,permission=permission)
+    ace = None
+    if object.acl:
+        ace = object.acl.get_query_set().filter(user=user,permission=permission)
     if not ace:
-        ace = AccessControlEntry.objects.create(user=user,permission=permission)
-        object.acl.append(ace)
+        ace = object.acl.create(user=user,permission=permission)
 
 def deny_user(object,user,permission):
-    ace = object.acl.filter(user=user,permission=permission)
+    ace = None
+    if object.acl:
+        ace = object.acl.get_query_set().filter(user=user,permission=permission)
     if ace:
         object.acl.remove(ace)
 
 def allow_group(object,group,permission):
-    ace = object.acl.filter(group=group,permission=permission)
+    ace = None
+    if object.acl:
+        ace = object.acl.get_query_set().filter(group=group,permission=permission)
     if not ace:
-        ace = AccessControlEntry.objects.create(group=group,permission=permission)
-        object.acl.append(ace)
+        ace = object.acl.create(group=group,permission=permission)
 
 def deny_group(object,group,permission):
-    ace = object.acl.filter(group=group,permission=permission)
+    ace = None
+    if object.acl:
+        ace = object.acl.get_query_set().filter(group=group,permission=permission)
     if ace:
         object.acl.remove(ace)
 
@@ -90,8 +99,9 @@ def is_allowed(object,user,permission):
     if not hasattr(object,'acl'):
         raise Exception,"no acl property"
     # XXX use more sql here
-    for ace in object.acl.filter(permission=permission):
-        if not ace.group or ace.group in user.groups or user == ace.user:
-            return True
+    if object.acl:
+        for ace in object.acl.get_query_set().filter(permission=permission):
+            if not ace.group or ace.group in user.groups or user == ace.user:
+                return True
             
     return False
