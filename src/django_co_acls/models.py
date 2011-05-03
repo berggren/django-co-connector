@@ -10,8 +10,8 @@ from django.contrib.auth.models import Group, User
 from django.db.models.fields.related import  ForeignKey
 
 class AccessControlEntry(models.Model):
-    group = ForeignKey(Group,related_name='+',blank=True,null=True)
-    user = ForeignKey(User,related_name='+',blank=True,null=True)
+    group = ForeignKey(Group,blank=True,null=True)
+    user = ForeignKey(User,blank=True,null=True)
     permission = CharField(max_length=256)
     modify_time = DateTimeField(auto_now=True)
     create_time = DateTimeField(auto_now_add=True)
