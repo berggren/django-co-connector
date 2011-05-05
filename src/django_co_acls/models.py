@@ -33,7 +33,8 @@ def allow(object,ug,permission):
         return allow_user(object,ug,permission)
     elif isinstance(ug,str):
         if ug == 'anyone':
-            ace,created = AccessControlEntry.objects.get_or_create(content_object=object,user=None,group=None)
+            type = ContentType.objects.get_for_model(object)
+            ace,created = AccessControlEntry.objects.get_or_create(object_id=object.id,content_type=type,user=None,group=None)
             return ace
     else:
         raise Exception,"Don't know how to allow %s to do stuff" % repr(ug)
@@ -45,7 +46,8 @@ def deny(object,ug,permission):
         return deny_user(object,ug,permission)
     elif isinstance(ug,str):
         if ug == 'anyone':
-            acl = AccessControlEntry.objects.filter(content_object=object,user=None,group=None,permission=permission)
+            type = ContentType.objects.get_for_model(object)
+            acl = AccessControlEntry.objects.filter(object_id=object.id,content_type=type,user=None,group=None,permission=permission)
             for ace in acl: # just in case we grew duplicates
                 ace.delete()
             return None
@@ -53,30 +55,41 @@ def deny(object,ug,permission):
         raise Exception,"Don't know how to allow %s to do stuff" % repr(ug)
 
 def acl(object):
-    return AccessControlEntry.objects.filter(content_object=object)
+    type = ContentType.objects.get_for_model(object)
+    return AccessControlEntry.objects.filter(object_id=object.id,content_type=type)
 
 def allow_user(object,user,permission):
-    ace,created = AccessControlEntry.objects.get_or_create(content_object=object,user=user,permission=permission)
+    type = ContentType.objects.get_for_model(object)
+    ace,created = AccessControlEntry.objects.get_or_create(object_id=object.id,content_type=type,user=user,permission=permission)
     return ace
 
 def deny_user(object,user,permission):
-    acl = AccessControlEntry.objects.filter(content_object=object,user=user,permission=permission)
+    type = ContentType.objects.get_for_model(object)
+    acl = AccessControlEntry.objects.filter(object_id=object.id,content_type=type,user=user,permission=permission)
     for ace in acl:
         ace.delete()
     return None
 
 def allow_group(object,group,permission):
-    ace,created = AccessControlEntry.objects.get_or_create(content_object=object,group=group,permission=permission)
+    type = ContentType.objects.get_for_model(object)
+    ace,created = AccessControlEntry.objects.get_or_create(object_id=object.id,content_type=type,group=group,permission=permission)
     return ace
 
 def deny_group(object,group,permission):
-    acl = AccessControlEntry.objects.filter(content_object=object,group=group,permission=permission)
+    type = ContentType.objects.get_for_model(object)
+    acl = AccessControlEntry.objects.filter(object_id=object.id,content_type=type,group=group,permission=permission)
     for ace in acl:
         ace.delete()
     return None
 
+def deny_all(object):
+    type = ContentType.objects.get_for_model(object)
+    for ace in AccessControlEntry.objects.filter(object_id=object.id,content_type=type):
+        ace.delete()
+
 def is_allowed(object,user,permission):
-    for ace in AccessControlEntry.objects.filter(content_object=object,permission=permission):
+    type = ContentType.objects.get_for_model(object)
+    for ace in AccessControlEntry.objects.filter(object_id=object.id,content_type=type,permission=permission):
         if (not ace.group and not ace.user) or (ace.group in user.groups) or (user == ace.user):
             return True
             
