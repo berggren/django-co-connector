@@ -21,7 +21,12 @@ class AccessControlEntry(models.Model):
     create_time = DateTimeField(auto_now_add=True)
     
     def __unicode__(self):
-        return "%s can %s on %s" % (self.group.__unicode__(),self.permission,self.content_object.__unicode__())
+        if self.user:
+            return "%s is allowed to %s %s" % (self.user.username,self.permission,self.content_object)
+        elif self.group:
+            return "%s is allowed to %s %s" % (self.group.name,self.permission,self.content_object)
+        else:
+            return "%s is allowed to %s %s" % ('anyone',self.permission,self.content_object)
 
     class Meta:
         unique_together = (('group','permission'),('user','permission'))
@@ -34,7 +39,7 @@ def allow(object,ug,permission):
     elif isinstance(ug,str):
         if ug == 'anyone':
             type = ContentType.objects.get_for_model(object)
-            ace,created = AccessControlEntry.objects.get_or_create(object_id=object.id,content_type=type,user=None,group=None)
+            ace,created = AccessControlEntry.objects.get_or_create(object_id=object.id,content_type=type,permission=permission,user=None,group=None)
             return ace
     else:
         raise Exception,"Don't know how to allow %s to do stuff" % repr(ug)
@@ -82,7 +87,7 @@ def deny_group(object,group,permission):
         ace.delete()
     return None
 
-def deny_all(object):
+def clear_acl(object):
     type = ContentType.objects.get_for_model(object)
     for ace in AccessControlEntry.objects.filter(object_id=object.id,content_type=type):
         ace.delete()
