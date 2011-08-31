@@ -36,8 +36,7 @@ def allow(object,ug,permission):
         return allow_group(object,ug,permission)
     elif isinstance(ug,User):
         return allow_user(object,ug,permission)
-    elif isinstance(ug,str):
-        if ug == 'anyone':
+    elif ug == 'anyone' or ug == '':
             type = ContentType.objects.get_for_model(object)
             ace,created = AccessControlEntry.objects.get_or_create(object_id=object.id,content_type=type,permission=permission,user=None,group=None)
             return ace
@@ -49,8 +48,7 @@ def deny(object,ug,permission):
         return deny_group(object,ug,permission)
     elif isinstance(ug,User):
         return deny_user(object,ug,permission)
-    elif isinstance(ug,str):
-        if ug == 'anyone':
+    elif ug == 'anyone' or ug == '':
             type = ContentType.objects.get_for_model(object)
             acl = AccessControlEntry.objects.filter(object_id=object.id,content_type=type,user=None,group=None,permission=permission)
             for ace in acl: # just in case we grew duplicates
@@ -91,11 +89,22 @@ def clear_acl(object):
     type = ContentType.objects.get_for_model(object)
     for ace in AccessControlEntry.objects.filter(object_id=object.id,content_type=type):
         ace.delete()
+        
+def remove_permission(id):
+    for ace in AccessControlEntry.objects.filter(pk=id):
+        ace.delete()
 
 def is_allowed(object,user,permission):
     type = ContentType.objects.get_for_model(object)
     for ace in AccessControlEntry.objects.filter(object_id=object.id,content_type=type,permission=permission):
-        if (not ace.group and not ace.user) or (ace.group in user.groups) or (user == ace.user):
+        if (not ace.group and not ace.user) or (ace.group in user.groups.all()) or (user == ace.user):
             return True
             
+    return False
+
+def is_anyone_allowed(object,permission):
+    type = ContentType.objects.get_for_model(object)
+    for ace in AccessControlEntry.objects.filter(object_id=object.id,content_type=type,user=None,group=None,permission=permission):
+        if not ace.group and not ace.user: #probably redundant but you never know what the db layer does...
+            return True
     return False
